@@ -1721,7 +1721,7 @@ void ARDUINO_ISR_ATTR spiWritePixelsNL(spi_t *spi, const void *data_in, uint32_t
     spi->dev->cmd.update = 1;
     while (spi->dev->cmd.update) {
       if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
-        return;
+        break;
       }
     }
 #endif
@@ -1729,7 +1729,7 @@ void ARDUINO_ISR_ATTR spiWritePixelsNL(spi_t *spi, const void *data_in, uint32_t
     spi->dev->cmd.usr = 1;
     while (spi->dev->cmd.usr) {
       if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
-        return;
+        break;
       }
     }
 
