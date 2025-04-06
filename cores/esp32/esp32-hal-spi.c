@@ -64,6 +64,11 @@
 #error Target CONFIG_IDF_TARGET is not supported
 #endif
 
+
+#ifndef SPI_TIMEOUT_US
+#define SPI_TIMEOUT_US 100000
+#endif
+
 struct spi_struct_t {
   volatile spi_dev_t *dev;
 #if !CONFIG_DISABLE_HAL_LOCKS
@@ -568,7 +573,12 @@ static void _on_apb_change(void *arg, apb_change_ev_t ev_type, uint32_t old_apb,
   spi_t *spi = (spi_t *)arg;
   if (ev_type == APB_BEFORE_CHANGE) {
     SPI_MUTEX_LOCK();
-    while (spi->dev->cmd.usr);
+    uint32_t time = esp_timer_get_time();
+    while (spi->dev->cmd.usr) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        break;
+      }
+    }
   } else {
     spi->dev->clock.val = spiFrequencyToClockDiv(old_apb / ((spi->dev->clock.clkdiv_pre + 1) * (spi->dev->clock.clkcnt_n + 1)));
     SPI_MUTEX_UNLOCK();
@@ -743,8 +753,13 @@ void spiWrite(spi_t *spi, const uint32_t *data, uint8_t len) {
   spi->dev->cmd.update = 1;
   while (spi->dev->cmd.update);
 #endif
+  uint32_t time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
   SPI_MUTEX_UNLOCK();
 }
 
@@ -770,8 +785,13 @@ void spiTransfer(spi_t *spi, uint32_t *data, uint8_t len) {
   spi->dev->cmd.update = 1;
   while (spi->dev->cmd.update);
 #endif
+  uint32_t time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
   for (i = 0; i < len; i++) {
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
     data[i] = spi->dev->data_buf[i].val;
@@ -786,6 +806,7 @@ void spiWriteByte(spi_t *spi, uint8_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   SPI_MUTEX_LOCK();
   spi->dev->mosi_dlen.usr_mosi_dbitlen = 7;
 #if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32
@@ -798,11 +819,21 @@ void spiWriteByte(spi_t *spi, uint8_t data) {
 #endif
 
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr){
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
   SPI_MUTEX_UNLOCK();
 }
 
@@ -810,6 +841,7 @@ uint8_t spiTransferByte(spi_t *spi, uint8_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   SPI_MUTEX_LOCK();
   spi->dev->mosi_dlen.usr_mosi_dbitlen = 7;
   spi->dev->miso_dlen.usr_miso_dbitlen = 7;
@@ -819,11 +851,21 @@ uint8_t spiTransferByte(spi_t *spi, uint8_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val & 0xFF;
 #else
@@ -846,6 +888,7 @@ void spiWriteWord(spi_t *spi, uint16_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     data = (data >> 8) | (data << 8);
   }
@@ -860,11 +903,21 @@ void spiWriteWord(spi_t *spi, uint16_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
   SPI_MUTEX_UNLOCK();
 }
 
@@ -872,6 +925,7 @@ uint16_t spiTransferWord(spi_t *spi, uint16_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     data = (data >> 8) | (data << 8);
   }
@@ -884,11 +938,21 @@ uint16_t spiTransferWord(spi_t *spi, uint16_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val;
 #else
@@ -905,6 +969,7 @@ void spiWriteLong(spi_t *spi, uint32_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     data = __spiTranslate32(data);
   }
@@ -919,11 +984,21 @@ void spiWriteLong(spi_t *spi, uint32_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
   SPI_MUTEX_UNLOCK();
 }
 
@@ -931,6 +1006,7 @@ uint32_t spiTransferLong(spi_t *spi, uint32_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     data = __spiTranslate32(data);
   }
@@ -943,11 +1019,21 @@ uint32_t spiTransferLong(spi_t *spi, uint32_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val;
 #else
@@ -964,6 +1050,7 @@ static void __spiTransferBytes(spi_t *spi, const uint8_t *data, uint8_t *out, ui
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   uint32_t i;
 
   if (bytes > 64) {
@@ -995,12 +1082,21 @@ static void __spiTransferBytes(spi_t *spi, const uint8_t *data, uint8_t *out, ui
   }
 
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 
   if (out) {
     for (i = 0; i < words; i++) {
@@ -1118,8 +1214,13 @@ void spiTransaction(spi_t *spi, uint32_t clockDiv, uint8_t dataMode, uint8_t bit
   }
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
   // Sync new config with hardware, fixes https://github.com/espressif/arduino-esp32/issues/9221
+  uint32_t time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
 }
 
@@ -1141,6 +1242,7 @@ void ARDUINO_ISR_ATTR spiWriteByteNL(spi_t *spi, uint8_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   spi->dev->mosi_dlen.usr_mosi_dbitlen = 7;
 #if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32
   spi->dev->miso_dlen.usr_miso_dbitlen = 0;
@@ -1151,17 +1253,28 @@ void ARDUINO_ISR_ATTR spiWriteByteNL(spi_t *spi, uint8_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 }
 
 uint8_t spiTransferByteNL(spi_t *spi, uint8_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   spi->dev->mosi_dlen.usr_mosi_dbitlen = 7;
   spi->dev->miso_dlen.usr_miso_dbitlen = 7;
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
@@ -1170,11 +1283,21 @@ uint8_t spiTransferByteNL(spi_t *spi, uint8_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val & 0xFF;
 #else
@@ -1187,6 +1310,7 @@ void ARDUINO_ISR_ATTR spiWriteShortNL(spi_t *spi, uint16_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     MSB_16_SET(data, data);
   }
@@ -1200,17 +1324,28 @@ void ARDUINO_ISR_ATTR spiWriteShortNL(spi_t *spi, uint16_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 }
 
 uint16_t spiTransferShortNL(spi_t *spi, uint16_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     MSB_16_SET(data, data);
   }
@@ -1222,11 +1357,21 @@ uint16_t spiTransferShortNL(spi_t *spi, uint16_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val & 0xFFFF;
 #else
@@ -1242,6 +1387,7 @@ void ARDUINO_ISR_ATTR spiWriteLongNL(spi_t *spi, uint32_t data) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     MSB_32_SET(data, data);
   }
@@ -1255,17 +1401,28 @@ void ARDUINO_ISR_ATTR spiWriteLongNL(spi_t *spi, uint32_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 }
 
 uint32_t spiTransferLongNL(spi_t *spi, uint32_t data) {
   if (!spi) {
     return 0;
   }
+  uint32_t time = 0;
   if (!spi->dev->ctrl.wr_bit_order) {
     MSB_32_SET(data, data);
   }
@@ -1277,11 +1434,21 @@ uint32_t spiTransferLongNL(spi_t *spi, uint32_t data) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val;
 #else
@@ -1297,6 +1464,7 @@ void spiWriteNL(spi_t *spi, const void *data_in, uint32_t len) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   size_t longs = len >> 2;
   if (len & 3) {
     longs++;
@@ -1320,11 +1488,21 @@ void spiWriteNL(spi_t *spi, const void *data_in, uint32_t len) {
 #endif
     }
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+    time = esp_timer_get_time();
     spi->dev->cmd.update = 1;
-    while (spi->dev->cmd.update);
+    while (spi->dev->cmd.update) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        break;
+      }
+    }
 #endif
+    time = esp_timer_get_time();
     spi->dev->cmd.usr = 1;
-    while (spi->dev->cmd.usr);
+    while (spi->dev->cmd.usr) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        break;
+      }
+    }
 
     data += c_longs;
     longs -= c_longs;
@@ -1336,6 +1514,7 @@ void spiTransferBytesNL(spi_t *spi, const void *data_in, uint8_t *data_out, uint
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
   size_t longs = len >> 2;
   if (len & 3) {
     longs++;
@@ -1368,11 +1547,21 @@ void spiTransferBytesNL(spi_t *spi, const void *data_in, uint8_t *data_out, uint
       }
     }
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+    time = esp_timer_get_time();
     spi->dev->cmd.update = 1;
-    while (spi->dev->cmd.update);
+    while (spi->dev->cmd.update) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        break;
+      }
+    }
 #endif
+    time = esp_timer_get_time();
     spi->dev->cmd.usr = 1;
-    while (spi->dev->cmd.usr);
+    while (spi->dev->cmd.usr) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        break;
+      }
+    }
     if (result) {
       if (c_len & 3) {
         for (size_t i = 0; i < (c_longs - 1); i++) {
@@ -1417,6 +1606,7 @@ void spiTransferBitsNL(spi_t *spi, uint32_t data, uint32_t *out, uint8_t bits) {
   if (!spi) {
     return;
   }
+  uint32_t time = 0;
 
   if (bits > 32) {
     bits = 32;
@@ -1442,11 +1632,21 @@ void spiTransferBitsNL(spi_t *spi, uint32_t data, uint32_t *out, uint8_t bits) {
   spi->dev->data_buf[0] = data;
 #endif
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+  time = esp_timer_get_time();
   spi->dev->cmd.update = 1;
-  while (spi->dev->cmd.update);
+  while (spi->dev->cmd.update) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #endif
+  time = esp_timer_get_time();
   spi->dev->cmd.usr = 1;
-  while (spi->dev->cmd.usr);
+  while (spi->dev->cmd.usr) {
+    if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+      break;
+    }
+  }
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32P4
   data = spi->dev->data_buf[0].val;
 #else
@@ -1474,6 +1674,7 @@ void ARDUINO_ISR_ATTR spiWritePixelsNL(spi_t *spi, const void *data_in, uint32_t
   bool msb = !spi->dev->ctrl.wr_bit_order;
   uint32_t *data = (uint32_t *)data_in;
   size_t c_len = 0, c_longs = 0, l_bytes = 0;
+  uint32_t time = 0;
 
   while (len) {
     c_len = (len > 64) ? 64 : len;
@@ -1516,11 +1717,21 @@ void ARDUINO_ISR_ATTR spiWritePixelsNL(spi_t *spi, const void *data_in, uint32_t
       }
     }
 #if !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S2)
+    time = esp_timer_get_time();
     spi->dev->cmd.update = 1;
-    while (spi->dev->cmd.update);
+    while (spi->dev->cmd.update) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        return;
+      }
+    }
 #endif
+    time = esp_timer_get_time();
     spi->dev->cmd.usr = 1;
-    while (spi->dev->cmd.usr);
+    while (spi->dev->cmd.usr) {
+      if (esp_timer_get_time() - time > SPI_TIMEOUT_US) {
+        return;
+      }
+    }
 
     data += c_longs;
     longs -= c_longs;
