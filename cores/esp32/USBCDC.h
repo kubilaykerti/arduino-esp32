@@ -76,6 +76,7 @@ public:
   int availableForWrite(void);
   int peek(void);
   int read(void);
+  int read(uint32_t timeout);
   size_t read(uint8_t *buffer, size_t size);
   size_t write(uint8_t);
   size_t write(const uint8_t *buffer, size_t size);

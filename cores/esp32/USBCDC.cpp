@@ -346,6 +346,17 @@ int USBCDC::peek(void) {
   return -1;
 }
 
+int USBCDC::read(uint32_t timeout){
+  if (itf >= CFG_TUD_CDC || rx_queue == NULL) {
+    return -1;
+  }
+  uint8_t c = 0;
+  if (xQueueReceive(rx_queue, &c, (TickType_t )timeout)) {
+    return c;
+  }
+  return -1;
+}
+
 int USBCDC::read(void) {
   if (itf >= CFG_TUD_CDC || rx_queue == NULL) {
     return -1;

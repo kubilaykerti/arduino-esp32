@@ -66,7 +66,7 @@
 
 
 #ifndef SPI_TIMEOUT_US
-#define SPI_TIMEOUT_US 100000
+#define SPI_TIMEOUT_US 10000
 #endif
 
 struct spi_struct_t {
